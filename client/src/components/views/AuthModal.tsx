@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Skull, KeyRound, ShieldAlert, Sparkles, UserPlus } from 'lucide-react';
+import { Sparkles } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { Modal } from '../common/Modal';
 import { api } from '../../api/client';
@@ -157,85 +157,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           </div>
         )}
 
-        {mode === 'login' && (
-          <div className="p-3 bg-studio-850/80 rounded-xl border border-studio-750 space-y-2.5">
-            <div className="flex items-center justify-between">
-              <span className="font-bold flex items-center gap-1.5 text-slate-200 text-[11px]">
-                <Sparkles className="w-3.5 h-3.5 text-rose-400" />
-                Prebuilt Studio Accounts
-              </span>
-              <span className="text-[10px] font-mono text-slate-300 bg-studio-900 border border-studio-700 px-2 py-0.5 rounded">
-                Password: <strong className="text-rose-400 font-bold">lostpaint123</strong>
-              </span>
-            </div>
-
-            <p className="text-[11px] text-slate-400">
-              Click any profile below to auto-fill credentials:
-            </p>
-
-            <div className="grid grid-cols-2 gap-2 pt-0.5">
-              <button
-                type="button"
-                onClick={() => {
-                  setEmail('kevin@lostpaintstudios.com');
-                  setPassword('lostpaint123');
-                }}
-                className="p-2 bg-studio-900 hover:bg-studio-800 border border-studio-750 rounded-xl text-left transition-all active:scale-95 group"
-              >
-                <div className="flex items-center justify-between mb-0.5">
-                  <span className="font-semibold text-rose-300 text-[11px] group-hover:text-rose-200">BuildwithKevin</span>
-                  <span className="text-[9px] bg-rose-950/80 text-rose-300 border border-rose-800/80 px-1.5 py-0.2 rounded font-mono">Admin</span>
-                </div>
-                <span className="text-[10px] text-slate-400 font-mono block truncate">kevin@lostpaintstudios.com</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setEmail('aquamilet@lostpaintstudios.com');
-                  setPassword('lostpaint123');
-                }}
-                className="p-2 bg-studio-900 hover:bg-studio-800 border border-studio-750 rounded-xl text-left transition-all active:scale-95 group"
-              >
-                <div className="flex items-center justify-between mb-0.5">
-                  <span className="font-semibold text-rose-300 text-[11px] group-hover:text-rose-200">AquaMiletYT</span>
-                  <span className="text-[9px] bg-rose-950/80 text-rose-300 border border-rose-800/80 px-1.5 py-0.2 rounded font-mono">Admin</span>
-                </div>
-                <span className="text-[10px] text-slate-400 font-mono block truncate">aquamilet@lostpaintstudios.com</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setEmail('survivor@lostpaintstudios.com');
-                  setPassword('lostpaint123');
-                }}
-                className="p-2 bg-studio-900 hover:bg-studio-800 border border-studio-750 rounded-xl text-left transition-all active:scale-95 group"
-              >
-                <div className="flex items-center justify-between mb-0.5">
-                  <span className="font-semibold text-sky-300 text-[11px] group-hover:text-sky-200">Survivor</span>
-                  <span className="text-[9px] bg-sky-950/80 text-sky-300 border border-sky-800/80 px-1.5 py-0.2 rounded font-mono">Editor</span>
-                </div>
-                <span className="text-[10px] text-slate-400 font-mono block truncate">survivor@lostpaintstudios.com</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setEmail('steve@lostpaintstudios.com');
-                  setPassword('lostpaint123');
-                }}
-                className="p-2 bg-studio-900 hover:bg-studio-800 border border-studio-750 rounded-xl text-left transition-all active:scale-95 group"
-              >
-                <div className="flex items-center justify-between mb-0.5">
-                  <span className="font-semibold text-sky-300 text-[11px] group-hover:text-sky-200">Steve</span>
-                  <span className="text-[9px] bg-sky-950/80 text-sky-300 border border-sky-800/80 px-1.5 py-0.2 rounded font-mono">Editor</span>
-                </div>
-                <span className="text-[10px] text-slate-400 font-mono block truncate">steve@lostpaintstudios.com</span>
-              </button>
-            </div>
-          </div>
-        )}
 
         {mode !== 'invite' && (
           <div>
