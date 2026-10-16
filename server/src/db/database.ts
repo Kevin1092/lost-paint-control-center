@@ -18,9 +18,18 @@ if (!fs.existsSync(dbDir)) {
 
 export const db = new Database(DB_PATH);
 
-// Enable WAL mode and foreign keys
-db.pragma('journal_mode = WAL');
-db.pragma('foreign_keys = ON');
+// Safely configure SQLite pragmas (Use DELETE mode instead of WAL for cloud container/Render compatibility)
+try {
+  db.pragma('journal_mode = DELETE');
+} catch (e) {
+  console.warn('[Database] Could not set journal_mode:', e);
+}
+
+try {
+  db.pragma('foreign_keys = ON');
+} catch (e) {
+  console.warn('[Database] Could not set foreign_keys:', e);
+}
 
 export function initDatabase() {
   db.exec(`

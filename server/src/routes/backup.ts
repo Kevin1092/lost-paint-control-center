@@ -17,8 +17,10 @@ backupRouter.get('/download', requireAuth, requireRole('admin'), (req: AuthReque
       return;
     }
 
-    // Force SQLite checkpoint so all WAL changes are written to the main DB file
-    db.pragma('wal_checkpoint(TRUNCATE)');
+    // Force SQLite checkpoint if WAL was used
+    try {
+      db.pragma('wal_checkpoint(TRUNCATE)');
+    } catch {}
 
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
     const filename = `lost_paint_backup_${timestamp}.db`;
@@ -46,7 +48,9 @@ backupRouter.get('/download', requireAuth, requireRole('admin'), (req: AuthReque
 backupRouter.post('/snapshot', requireAuth, requireRole('admin'), (req: AuthRequest, res: Response): void => {
   try {
     const dbPath = process.env.DATABASE_PATH || path.resolve(__dirname, '../../data/lost_paint.db');
-    db.pragma('wal_checkpoint(TRUNCATE)');
+    try {
+      db.pragma('wal_checkpoint(TRUNCATE)');
+    } catch {}
 
     const snapshotDir = path.resolve(__dirname, '../../data/backups');
     if (!fs.existsSync(snapshotDir)) {
