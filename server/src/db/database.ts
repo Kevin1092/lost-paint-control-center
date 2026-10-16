@@ -1,10 +1,14 @@
+import 'dotenv/config';
 import Database from 'better-sqlite3';
 import path from 'path';
 import fs from 'fs';
 import crypto from 'crypto';
 import bcrypt from 'bcryptjs';
 
-const DB_PATH = process.env.DATABASE_PATH || path.resolve(__dirname, '../../data/lost_paint.db');
+const isTest = process.env.NODE_ENV === 'test' || Boolean(process.env.VITEST);
+const DB_PATH = isTest
+  ? (process.env.TEST_DATABASE_PATH || path.resolve(__dirname, '../../data/lost_paint_test.db'))
+  : (process.env.DATABASE_PATH ? path.resolve(process.cwd(), process.env.DATABASE_PATH) : path.resolve(__dirname, '../../data/lost_paint.db'));
 
 // Ensure database directory exists
 const dbDir = path.dirname(DB_PATH);

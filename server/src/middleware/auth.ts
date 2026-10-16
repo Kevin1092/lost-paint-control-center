@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { db } from '../db/database';
@@ -32,6 +33,11 @@ export function requireAuth(req: AuthRequest, res: Response, next: NextFunction)
       token = req.headers.authorization.split(' ')[1];
     }
 
+    // Also support token query param for direct downloads/exports
+    if (!token && typeof req.query.token === 'string') {
+      token = req.query.token;
+    }
+
     if (!token) {
       res.status(401).json({ error: 'Authentication required. Please log in.' });
       return;
@@ -57,6 +63,9 @@ export function optionalAuth(req: AuthRequest, res: Response, next: NextFunction
     let token = req.cookies?.token;
     if (!token && req.headers.authorization?.startsWith('Bearer ')) {
       token = req.headers.authorization.split(' ')[1];
+    }
+    if (!token && typeof req.query.token === 'string') {
+      token = req.query.token;
     }
     if (token) {
       const decoded = jwt.verify(token, JWT_SECRET) as { id: string };

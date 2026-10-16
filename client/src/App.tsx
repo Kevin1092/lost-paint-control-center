@@ -85,17 +85,21 @@ const MainLayout: React.FC = () => {
   const [openTasksCount, setOpenTasksCount] = useState(0);
   const [openBugsCount, setOpenBugsCount] = useState(0);
 
-  const { setupNeeded, user } = useAuth();
+  const { setupNeeded, user, loading } = useAuth();
 
   useEffect(() => {
-    if (setupNeeded) {
-      setAuthModalOpen(true);
+    if (!loading) {
+      if (setupNeeded) {
+        setAuthModalOpen(true);
+      } else if (!user) {
+        setAuthModalOpen(true);
+      }
     }
-  }, [setupNeeded]);
+  }, [setupNeeded, user, loading]);
 
   useEffect(() => {
     loadBadgeCounts();
-  }, [currentSection]);
+  }, [currentSection, user]);
 
   const loadBadgeCounts = async () => {
     try {
@@ -118,6 +122,7 @@ const MainLayout: React.FC = () => {
           <DashboardView
             onNavigate={setCurrentSection}
             onOpenQuickAction={() => setQuickActionModalOpen(true)}
+            onOpenAuthModal={() => setAuthModalOpen(true)}
           />
         );
       case 'tasks':

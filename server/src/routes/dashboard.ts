@@ -21,7 +21,7 @@ dashboardRouter.get('/stats', requireAuth, (req: AuthRequest, res: Response) => 
     FROM tasks
   `).get(today, today, nextWeek) as any;
 
-  // Chapter Roadmap Progress (calculated strictly from linked tasks)
+  // Chapter Roadmap Progress (calculated from linked tasks & milestones)
   const chapters = db.prepare(`
     SELECT
       c.id, c.order_index, c.name, c.day_range, c.status,
@@ -33,10 +33,41 @@ dashboardRouter.get('/stats', requireAuth, (req: AuthRequest, res: Response) => 
     ORDER BY c.order_index ASC
   `).all() as any[];
 
-  const chapterProgress = chapters.map(c => ({
-    ...c,
-    progress_percent: c.total_tasks > 0 ? Math.round((c.completed_tasks / c.total_tasks) * 100) : 0
-  }));
+  const milestones = db.prepare(`
+    SELECT chapter_id, status FROM milestones
+  `).all() as any[];
+
+  const milestonesByChapter: Record<string, any[]> = {};
+  for (const ms of milestones) {
+    if (!milestonesByChapter[ms.chapter_id]) milestonesByChapter[ms.chapter_id] = [];
+    milestonesByChapter[ms.chapter_id].push(ms);
+  }
+
+  const chapterProgress = chapters.map(c => {
+    const chMilestones = milestonesByChapter[c.id] || [];
+    const totalMilestones = chMilestones.length;
+    const completedMilestones = chMilestones.filter((m: any) => m.status === 'Completed').length;
+
+    let progressPercent = 0;
+    if (c.status === 'Completed') {
+      progressPercent = 100;
+    } else {
+      const totalUnits = (c.total_tasks || 0) + totalMilestones;
+      const completedUnits = (c.completed_tasks || 0) + completedMilestones;
+      if (totalUnits > 0) {
+        progressPercent = Math.min(100, Math.max(0, Math.round((completedUnits / totalUnits) * 100)));
+      }
+    }
+
+    return {
+      ...c,
+      total_tasks: c.total_tasks || 0,
+      completed_tasks: c.completed_tasks || 0,
+      total_milestones: totalMilestones,
+      completed_milestones: completedMilestones,
+      progress_percent: progressPercent
+    };
+  });
 
   // Team Workload
   const teamWorkload = db.prepare(`

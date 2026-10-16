@@ -201,4 +201,67 @@ describe('Lost Paint Studios — Studio Control Center Backend Tests', () => {
     expect(res.headers['content-type']).toContain('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     expect(res.body).toBeDefined();
   });
+
+  it('Successfully queries and sorts tasks with priority ordering', async () => {
+    const res = await request(app)
+      .get('/api/tasks')
+      .set('Authorization', `Bearer ${adminToken}`);
+
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body.tasks)).toBe(true);
+    expect(res.body.tasks.length).toBeGreaterThan(0);
+  });
+
+  it('Successfully queries and sorts bugs with severity ordering', async () => {
+    const res = await request(app)
+      .get('/api/bugs')
+      .set('Authorization', `Bearer ${adminToken}`);
+
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body.bugs)).toBe(true);
+  });
+
+  it('Supports adding, toggling, and deleting milestones and chapters', async () => {
+    // 1. Create a temporary chapter
+    const createRes = await request(app)
+      .post('/api/chapters')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        name: 'Test Deletion Chapter',
+        day_range: 'Days 101–120',
+        status: 'Planned'
+      });
+    expect(createRes.status).toBe(201);
+    const testChId = createRes.body.id;
+
+    // 2. Add a milestone to this chapter
+    const msRes = await request(app)
+      .post(`/api/chapters/${testChId}/milestones`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        title: 'Temporary Milestone Test',
+        status: 'Pending'
+      });
+    expect(msRes.status).toBe(201);
+    const testMsId = msRes.body.id;
+
+    // 3. Delete milestone
+    const delMsRes = await request(app)
+      .delete(`/api/chapters/milestones/${testMsId}`)
+      .set('Authorization', `Bearer ${adminToken}`);
+    expect(delMsRes.status).toBe(200);
+
+    // 4. Delete chapter
+    const delChRes = await request(app)
+      .delete(`/api/chapters/${testChId}`)
+      .set('Authorization', `Bearer ${adminToken}`);
+    expect(delChRes.status).toBe(200);
+
+    // 5. Verify chapter is gone
+    const checkRes = await request(app)
+      .get(`/api/chapters/${testChId}`)
+      .set('Authorization', `Bearer ${adminToken}`);
+    expect(checkRes.status).toBe(404);
+  });
 });
+

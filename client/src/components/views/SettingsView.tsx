@@ -122,7 +122,27 @@ export const SettingsView: React.FC = () => {
     }
   };
 
-  if (loading || !settings) return <LoadingSpinner label="Loading studio configuration..." />;
+  if (loading) return <LoadingSpinner label="Loading studio configuration..." />;
+
+  if (!settings) {
+    return (
+      <div className="p-8 text-center rounded-2xl bg-studio-900 border border-studio-800 space-y-4 max-w-lg mx-auto mt-12">
+        <div className="w-12 h-12 rounded-xl bg-rose-950/60 border border-rose-800 flex items-center justify-center mx-auto text-rose-400">
+          <Settings className="w-6 h-6" />
+        </div>
+        <h3 className="text-base font-bold text-slate-100">Authentication Required</h3>
+        <p className="text-xs text-slate-400">
+          Studio settings and database configuration are accessible to authenticated studio members. Please sign in to view and update configurations.
+        </p>
+        <button
+          onClick={loadData}
+          className="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white text-xs font-semibold rounded-xl transition-all"
+        >
+          Retry Connection
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8 max-w-5xl">
@@ -281,7 +301,7 @@ export const SettingsView: React.FC = () => {
         {isAdmin ? (
           <div className="flex flex-wrap items-center gap-3 pt-2">
             <a
-              href={api.downloadDbBackupUrl}
+              href={api.getBackupDownloadUrl()}
               className="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white font-semibold rounded-xl flex items-center gap-2 shadow-lg transition-transform active:scale-95"
             >
               <Download className="w-4 h-4" />

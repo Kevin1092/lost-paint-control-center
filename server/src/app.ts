@@ -1,7 +1,9 @@
+import 'dotenv/config';
 import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
-import dotenv from 'dotenv';
+import path from 'path';
+import fs from 'fs';
 import { db, initDatabase } from './db/database';
 import { authRouter } from './routes/auth';
 import { dashboardRouter } from './routes/dashboard';
@@ -19,8 +21,6 @@ import { excelRouter } from './routes/excel';
 import { notionRouter } from './routes/notion';
 import { settingsRouter } from './routes/settings';
 import { backupRouter } from './routes/backup';
-
-dotenv.config();
 
 // Ensure DB is initialized
 initDatabase();
@@ -78,6 +78,15 @@ app.use('/api/backup', backupRouter);
 app.use('/api/*', (req: Request, res: Response) => {
   res.status(404).json({ error: `Endpoint ${req.method} ${req.baseUrl} not found.` });
 });
+
+// Serve static React build when client/dist exists
+const clientDistPath = path.resolve(__dirname, '../../client/dist');
+if (fs.existsSync(clientDistPath)) {
+  app.use(express.static(clientDistPath));
+  app.get('*', (req: Request, res: Response) => {
+    res.sendFile(path.join(clientDistPath, 'index.html'));
+  });
+}
 
 // Centralized Error Handler
 app.use((err: any, req: Request, res: Response, next: NextFunction) => {

@@ -7,7 +7,8 @@
     "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
     "build": "tsc",
     "start": "node dist/index.js",
-    "test": "vitest run"
+    "test": "vitest run",
+    "db:reset": "ts-node-dev --transpile-only src/db/reset.ts"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

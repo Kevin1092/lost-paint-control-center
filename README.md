@@ -124,6 +124,11 @@ Build production bundles for deployment:
 npm run build
 ```
 
+Reset database to clean initial state (ready for fresh owner setup):
+```bash
+npm run db:reset
+```
+
 ---
 
 ## 8. Database Persistence & Disaster Recovery

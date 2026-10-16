@@ -145,6 +145,39 @@ export const ChaptersView: React.FC = () => {
     }
   };
 
+  const handleDeleteChapter = async (chapterId: string, chapterName: string) => {
+    if (!window.confirm(`Are you sure you want to delete roadmap block "${chapterName}"? All linked milestones will also be removed.`)) {
+      return;
+    }
+    try {
+      await api.deleteChapter(chapterId);
+      success(`Roadmap block "${chapterName}" deleted.`);
+      if (modalOpen && activeChapter?.id === chapterId) {
+        setModalOpen(false);
+      }
+      loadChapters();
+    } catch (err: any) {
+      error(err.message || 'Failed to delete chapter.');
+    }
+  };
+
+  const handleDeleteMilestone = async (milestoneId: string, milestoneTitle: string) => {
+    if (!window.confirm(`Delete milestone "${milestoneTitle}"?`)) {
+      return;
+    }
+    try {
+      await api.deleteMilestone(milestoneId);
+      success('Milestone removed.');
+      if (activeChapter?.id) {
+        const updated = await api.getChapter(activeChapter.id);
+        setActiveChapter(updated.chapter);
+      }
+      loadChapters();
+    } catch (err: any) {
+      error(err.message || 'Failed to delete milestone.');
+    }
+  };
+
   if (loading) return <LoadingSpinner label="Loading Chapter Roadmap & Milestones..." />;
 
   return (
@@ -161,7 +194,7 @@ export const ChaptersView: React.FC = () => {
             Story Progression & Technical Integration Blocks
           </h3>
           <p className="text-xs text-slate-400 max-w-2xl mt-1 leading-relaxed">
-            Progress is derived automatically from linked production tasks. Day ranges represent relative development sprints; start dates can be configured as sprints officially commence.
+            Progress is derived automatically from linked production tasks and chapter milestones. Day ranges represent relative development sprints; start dates can be configured as sprints officially commence.
           </p>
         </div>
 
@@ -180,6 +213,11 @@ export const ChaptersView: React.FC = () => {
       <div className="space-y-4">
         {chapters.map((ch, index) => {
           const percent = ch.progress_percent || 0;
+          const completedMilestones = ch.milestones?.filter(m => m.status === 'Completed').length || 0;
+          const totalMilestones = ch.milestones?.length || 0;
+          const hasTasks = (ch.total_tasks || 0) > 0;
+          const hasMilestones = totalMilestones > 0;
+
           return (
             <div
               key={ch.id}
@@ -226,18 +264,37 @@ export const ChaptersView: React.FC = () => {
                       {percent}%
                     </div>
                     <div className="text-[11px] font-mono text-slate-400">
-                      {ch.completed_tasks || 0}/{ch.total_tasks || 0} tasks done
+                      {hasTasks && hasMilestones ? (
+                        <span>{ch.completed_tasks || 0}/{ch.total_tasks} tasks • {completedMilestones}/{totalMilestones} milestones</span>
+                      ) : hasTasks ? (
+                        <span>{ch.completed_tasks || 0}/{ch.total_tasks} tasks done</span>
+                      ) : hasMilestones ? (
+                        <span>{completedMilestones}/{totalMilestones} milestones done</span>
+                      ) : ch.status === 'Completed' ? (
+                        <span className="text-emerald-400 font-semibold">Completed</span>
+                      ) : (
+                        <span>0 tasks • 0 milestones</span>
+                      )}
                     </div>
                   </div>
 
                   {canEdit && (
-                    <button
-                      onClick={() => handleOpenEdit(ch)}
-                      className="p-2 bg-studio-850 hover:bg-studio-800 border border-studio-750 text-slate-300 rounded-xl"
-                      title="Edit Chapter & Milestones"
-                    >
-                      <Edit2 className="w-4 h-4" />
-                    </button>
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        onClick={() => handleOpenEdit(ch)}
+                        className="p-2 bg-studio-850 hover:bg-studio-800 border border-studio-750 text-slate-300 hover:text-white rounded-xl transition-colors"
+                        title="Edit Chapter & Milestones"
+                      >
+                        <Edit2 className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => handleDeleteChapter(ch.id, ch.name)}
+                        className="p-2 bg-studio-850 hover:bg-rose-950/60 border border-studio-750 hover:border-rose-900/60 text-slate-400 hover:text-rose-400 rounded-xl transition-colors"
+                        title="Delete Roadmap Block"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
                   )}
                 </div>
               </div>
@@ -248,13 +305,15 @@ export const ChaptersView: React.FC = () => {
                   className={`h-full transition-all duration-500 rounded-full ${
                     percent === 100
                       ? 'bg-emerald-500'
-                      : percent > 50
+                      : ch.status === 'Blocked'
                       ? 'bg-rose-500'
-                      : percent > 0
+                      : percent >= 50
                       ? 'bg-sky-500'
+                      : percent > 0
+                      ? 'bg-sky-600'
                       : 'bg-studio-800'
                   }`}
-                  style={{ width: `${percent}%` }}
+                  style={{ width: `${Math.min(100, Math.max(0, percent))}%` }}
                 />
               </div>
 
@@ -417,10 +476,12 @@ export const ChaptersView: React.FC = () => {
                 {activeChapter.milestones?.map(m => (
                   <div
                     key={m.id}
-                    onClick={() => handleToggleMilestone(m.id, m.status)}
-                    className="flex items-center justify-between p-2 rounded-xl bg-studio-850 border border-studio-750 cursor-pointer hover:border-studio-600"
+                    className="flex items-center justify-between p-2 rounded-xl bg-studio-850 border border-studio-750 hover:border-studio-600 transition-colors"
                   >
-                    <div className="flex items-center gap-2">
+                    <div
+                      onClick={() => handleToggleMilestone(m.id, m.status)}
+                      className="flex items-center gap-2 flex-1 cursor-pointer select-none"
+                    >
                       <input
                         type="checkbox"
                         checked={m.status === 'Completed'}
@@ -431,9 +492,24 @@ export const ChaptersView: React.FC = () => {
                         {m.title}
                       </span>
                     </div>
-                    <Badge variant={m.status === 'Completed' ? 'emerald' : 'default'} size="sm">
-                      {m.status}
-                    </Badge>
+                    <div className="flex items-center gap-2">
+                      <Badge variant={m.status === 'Completed' ? 'emerald' : 'default'} size="sm">
+                        {m.status}
+                      </Badge>
+                      {canEdit && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteMilestone(m.id, m.title);
+                          }}
+                          className="p-1 text-slate-500 hover:text-rose-400 hover:bg-rose-950/40 rounded transition-colors"
+                          title="Delete Milestone"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
                   </div>
                 ))}
               </div>
@@ -457,20 +533,35 @@ export const ChaptersView: React.FC = () => {
             </div>
           )}
 
-          <div className="flex justify-end gap-3 pt-4 border-t border-studio-800">
-            <button
-              type="button"
-              onClick={() => setModalOpen(false)}
-              className="px-4 py-2 bg-studio-800 text-slate-300 rounded-xl"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              className="px-5 py-2 bg-rose-600 hover:bg-rose-500 text-white font-semibold rounded-xl"
-            >
-              Save Roadmap Block
-            </button>
+          <div className="flex items-center justify-between gap-3 pt-4 border-t border-studio-800">
+            {isEditing && activeChapter?.id && canEdit ? (
+              <button
+                type="button"
+                onClick={() => handleDeleteChapter(activeChapter.id!, activeChapter.name || 'this chapter')}
+                className="px-3.5 py-2 bg-rose-950/40 hover:bg-rose-950 border border-rose-900/60 text-rose-300 hover:text-rose-200 rounded-xl flex items-center gap-1.5 font-medium transition-colors"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>Delete Chapter</span>
+              </button>
+            ) : (
+              <div />
+            )}
+
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setModalOpen(false)}
+                className="px-4 py-2 bg-studio-800 text-slate-300 rounded-xl hover:bg-studio-750 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="px-5 py-2 bg-rose-600 hover:bg-rose-500 text-white font-semibold rounded-xl transition-colors"
+              >
+                Save Roadmap Block
+              </button>
+            </div>
           </div>
         </form>
       </Modal>

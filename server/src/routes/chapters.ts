@@ -46,11 +46,32 @@ chaptersRouter.get('/', requireAuth, (req: AuthRequest, res: Response) => {
     milestonesByChapter[ms.chapter_id].push(ms);
   }
 
-  const enriched = chapters.map(c => ({
-    ...c,
-    progress_percent: c.total_tasks > 0 ? Math.round((c.completed_tasks / c.total_tasks) * 100) : 0,
-    milestones: milestonesByChapter[c.id] || []
-  }));
+  const enriched = chapters.map(c => {
+    const chMilestones = milestonesByChapter[c.id] || [];
+    const totalMilestones = chMilestones.length;
+    const completedMilestones = chMilestones.filter((m: any) => m.status === 'Completed').length;
+
+    let progressPercent = 0;
+    if (c.status === 'Completed') {
+      progressPercent = 100;
+    } else {
+      const totalUnits = (c.total_tasks || 0) + totalMilestones;
+      const completedUnits = (c.completed_tasks || 0) + completedMilestones;
+      if (totalUnits > 0) {
+        progressPercent = Math.min(100, Math.max(0, Math.round((completedUnits / totalUnits) * 100)));
+      }
+    }
+
+    return {
+      ...c,
+      total_tasks: c.total_tasks || 0,
+      completed_tasks: c.completed_tasks || 0,
+      total_milestones: totalMilestones,
+      completed_milestones: completedMilestones,
+      progress_percent: progressPercent,
+      milestones: chMilestones
+    };
+  });
 
   res.json({ chapters: enriched });
 });
@@ -78,17 +99,32 @@ chaptersRouter.get('/:id', requireAuth, (req: AuthRequest, res: Response): void 
 
   const totalTasks = tasks.length;
   const completedTasks = tasks.filter(t => t.status === 'Done').length;
-  const progressPercent = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
 
   const milestones = db.prepare(`
     SELECT * FROM milestones WHERE chapter_id = ? ORDER BY created_at ASC
-  `).all(chapter.id);
+  `).all(chapter.id) as any[];
+
+  const totalMilestones = milestones.length;
+  const completedMilestones = milestones.filter((m: any) => m.status === 'Completed').length;
+
+  let progressPercent = 0;
+  if (chapter.status === 'Completed') {
+    progressPercent = 100;
+  } else {
+    const totalUnits = totalTasks + totalMilestones;
+    const completedUnits = completedTasks + completedMilestones;
+    if (totalUnits > 0) {
+      progressPercent = Math.min(100, Math.max(0, Math.round((completedUnits / totalUnits) * 100)));
+    }
+  }
 
   res.json({
     chapter: {
       ...chapter,
       total_tasks: totalTasks,
       completed_tasks: completedTasks,
+      total_milestones: totalMilestones,
+      completed_milestones: completedMilestones,
       progress_percent: progressPercent,
       milestones,
       tasks
@@ -192,13 +228,16 @@ chaptersRouter.put('/:id', requireAuth, requireRole('admin', 'editor'), (req: Au
 });
 
 // DELETE /api/chapters/:id
-chaptersRouter.delete('/:id', requireAuth, requireRole('admin'), (req: AuthRequest, res: Response): void => {
+chaptersRouter.delete('/:id', requireAuth, requireRole('admin', 'editor'), (req: AuthRequest, res: Response): void => {
   const existing = db.prepare('SELECT name FROM chapters WHERE id = ?').get(req.params.id) as any;
   if (!existing) {
     res.status(404).json({ error: 'Chapter not found.' });
     return;
   }
 
+  // Clean up any tasks or milestones linked to this chapter
+  db.prepare('UPDATE tasks SET chapter_id = NULL WHERE chapter_id = ?').run(req.params.id);
+  db.prepare('DELETE FROM milestones WHERE chapter_id = ?').run(req.params.id);
   db.prepare('DELETE FROM chapters WHERE id = ?').run(req.params.id);
 
   logAudit({
@@ -247,4 +286,28 @@ chaptersRouter.patch('/milestones/:milestoneId', requireAuth, requireRole('admin
   `).run(status || null, title || null, target_date || null, now, req.params.milestoneId);
 
   res.json({ message: 'Milestone updated.' });
+});
+
+// DELETE /api/chapters/milestones/:milestoneId (Delete milestone)
+chaptersRouter.delete('/milestones/:milestoneId', requireAuth, requireRole('admin', 'editor'), (req: AuthRequest, res: Response): void => {
+  const existing = db.prepare('SELECT title, chapter_id FROM milestones WHERE id = ?').get(req.params.milestoneId) as any;
+  if (!existing) {
+    res.status(404).json({ error: 'Milestone not found.' });
+    return;
+  }
+
+  // Detach any tasks referencing this milestone
+  db.prepare('UPDATE tasks SET milestone_id = NULL WHERE milestone_id = ?').run(req.params.milestoneId);
+  db.prepare('DELETE FROM milestones WHERE id = ?').run(req.params.milestoneId);
+
+  logAudit({
+    userId: req.user!.id,
+    userName: req.user!.display_name,
+    action: 'DELETE',
+    entityType: 'MILESTONE',
+    entityId: req.params.milestoneId,
+    details: `Deleted milestone "${existing.title}"`
+  });
+
+  res.json({ message: 'Milestone deleted.' });
 });

@@ -79,6 +79,7 @@ export const api = {
   deleteChapter: (id: string) => request<any>(`/chapters/${id}`, { method: 'DELETE' }),
   addMilestone: (chapterId: string, data: any) => request<any>(`/chapters/${chapterId}/milestones`, { method: 'POST', body: JSON.stringify(data) }),
   updateMilestone: (milestoneId: string, data: any) => request<any>(`/chapters/milestones/${milestoneId}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  deleteMilestone: (milestoneId: string) => request<any>(`/chapters/milestones/${milestoneId}`, { method: 'DELETE' }),
 
   // Team
   getTeam: () => request<{ team: any[] }>('/team'),
@@ -159,11 +160,23 @@ export const api = {
 
   // Backup
   downloadDbBackupUrl: '/api/backup/download',
+  getBackupDownloadUrl: () => {
+    const token = localStorage.getItem('lost_paint_token');
+    return token ? `/api/backup/download?token=${encodeURIComponent(token)}` : '/api/backup/download';
+  },
   createSnapshot: () => request<any>('/backup/snapshot', { method: 'POST' }),
 
   // Excel
   exportWorkbookUrl: '/api/excel/export',
   exportTemplateUrl: '/api/excel/template',
+  getExportWorkbookUrl: () => {
+    const token = localStorage.getItem('lost_paint_token');
+    return token ? `/api/excel/export?token=${encodeURIComponent(token)}` : '/api/excel/export';
+  },
+  getExportTemplateUrl: () => {
+    const token = localStorage.getItem('lost_paint_token');
+    return token ? `/api/excel/template?token=${encodeURIComponent(token)}` : '/api/excel/template';
+  },
   previewExcel: (file: File) => {
     const formData = new FormData();
     formData.append('file', file);

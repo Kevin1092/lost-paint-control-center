@@ -18,17 +18,21 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const { setupNeeded, login, setupAdmin, acceptInvite } = useAuth();
   const [mode, setMode] = useState<'login' | 'setup' | 'invite'>(setupNeeded ? 'setup' : initialMode);
 
-  // Form states
-  const [email, setEmail] = useState('');
+  const [email, setEmail] = useState(setupNeeded ? 'kevin@lostpaintstudios.com' : '');
   const [password, setPassword] = useState('');
-  const [displayName, setDisplayName] = useState('');
+  const [displayName, setDisplayName] = useState(setupNeeded ? 'BuildwithKevin' : '');
   const [selectedFounder, setSelectedFounder] = useState('member-1');
   const [inviteToken, setInviteToken] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    if (setupNeeded) setMode('setup');
-    else setMode(initialMode);
+    if (setupNeeded) {
+      setMode('setup');
+      setEmail('kevin@lostpaintstudios.com');
+      setDisplayName('BuildwithKevin');
+    } else {
+      setMode(initialMode);
+    }
   }, [setupNeeded, initialMode]);
 
   const handleSubmit = async (e: React.FormEvent) => {

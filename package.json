@@ -9,8 +9,10 @@
     "build:server": "cd server && npm run build",
     "build:client": "cd client && npm run build",
     "build": "npm run build:server && npm run build:client",
+    "start": "cd server && npm start",
     "test": "cd server && npm test",
-    "typecheck": "cd server && npx tsc --noEmit && cd ../client && npx tsc --noEmit"
+    "typecheck": "cd server && npx tsc --noEmit && cd ../client && npx tsc --noEmit",
+    "db:reset": "cd server && npm run db:reset"
   },
   "devDependencies": {
     "concurrently": "^9.1.2"

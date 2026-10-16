@@ -123,7 +123,7 @@ export const DataView: React.FC = () => {
 
           <div className="flex flex-wrap items-center gap-3 shrink-0">
             <a
-              href={api.exportTemplateUrl}
+              href={api.getExportTemplateUrl()}
               download="lost_paint_studios_template.xlsx"
               className="px-4 py-2 bg-studio-850 hover:bg-studio-800 border border-studio-750 text-slate-200 rounded-xl text-xs font-medium flex items-center gap-2 transition-colors"
             >
@@ -132,7 +132,7 @@ export const DataView: React.FC = () => {
             </a>
 
             <a
-              href={api.exportWorkbookUrl}
+              href={api.getExportWorkbookUrl()}
               download="lost_paint_studios_export.xlsx"
               className="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-semibold flex items-center gap-2 shadow-lg shadow-emerald-950/40 transition-transform active:scale-95"
             >

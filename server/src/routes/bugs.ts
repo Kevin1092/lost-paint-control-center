@@ -72,7 +72,7 @@ bugsRouter.get('/', requireAuth, (req: AuthRequest, res: Response) => {
 
   query += `
     ORDER BY
-      CASE b.severity WHEN "Critical" THEN 1 WHEN "High" THEN 2 WHEN "Medium" THEN 3 ELSE 4 END,
+      CASE b.severity WHEN 'Critical' THEN 1 WHEN 'High' THEN 2 WHEN 'Medium' THEN 3 ELSE 4 END,
       b.created_at DESC
   `;
 

@@ -82,7 +82,7 @@ tasksRouter.get('/', requireAuth, (req: AuthRequest, res: Response) => {
     params.push(s, s, s);
   }
 
-  query += ' ORDER BY CASE t.priority WHEN "Urgent" THEN 1 WHEN "High" THEN 2 WHEN "Normal" THEN 3 ELSE 4 END, t.created_at DESC';
+  query += " ORDER BY CASE t.priority WHEN 'Urgent' THEN 1 WHEN 'High' THEN 2 WHEN 'Normal' THEN 3 ELSE 4 END, t.created_at DESC";
 
   const tasks = db.prepare(query).all(...params) as any[];
 

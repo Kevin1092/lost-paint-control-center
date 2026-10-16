@@ -21,19 +21,21 @@ import { useAuth } from '../../context/AuthContext';
 interface DashboardViewProps {
   onNavigate: (section: any) => void;
   onOpenQuickAction: (type?: string) => void;
+  onOpenAuthModal?: () => void;
 }
 
 export const DashboardView: React.FC<DashboardViewProps> = ({
   onNavigate,
-  onOpenQuickAction
+  onOpenQuickAction,
+  onOpenAuthModal
 }) => {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
-  const { canEdit } = useAuth();
+  const { canEdit, user } = useAuth();
 
   useEffect(() => {
     loadStats();
-  }, []);
+  }, [user]);
 
   const loadStats = async () => {
     try {
@@ -47,8 +49,38 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     }
   };
 
-  if (loading || !stats) {
+  if (loading) {
     return <LoadingSpinner label="Loading Lost Paint Studios dashboard metrics..." />;
+  }
+
+  if (!stats) {
+    return (
+      <div className="p-8 text-center rounded-2xl bg-studio-900 border border-studio-800 space-y-4 max-w-lg mx-auto mt-12 shadow-2xl">
+        <div className="w-14 h-14 rounded-2xl bg-rose-950/60 border border-rose-800/80 flex items-center justify-center mx-auto text-rose-400">
+          <TrendingUp className="w-7 h-7" />
+        </div>
+        <h3 className="text-lg font-bold text-slate-100">Lost Paint Studios Control Center</h3>
+        <p className="text-xs text-slate-400 leading-relaxed">
+          Please sign in to access live studio analytics, roadmap completion metrics, team workload stats, and active blockers.
+        </p>
+        <div className="flex items-center justify-center gap-3 pt-2">
+          {onOpenAuthModal && (
+            <button
+              onClick={onOpenAuthModal}
+              className="px-5 py-2.5 bg-rose-600 hover:bg-rose-500 text-white text-xs font-semibold rounded-xl shadow-lg transition-transform active:scale-95"
+            >
+              Sign In to Control Center
+            </button>
+          )}
+          <button
+            onClick={loadStats}
+            className="px-4 py-2.5 bg-studio-850 hover:bg-studio-800 border border-studio-750 text-slate-300 text-xs font-medium rounded-xl transition-colors"
+          >
+            Retry Connection
+          </button>
+        </div>
+      </div>
+    );
   }
 
   const { taskCounts, chapterProgress, teamWorkload, bugStats, recentActivity, upcomingEvents, blockedTasks } = stats;
@@ -166,7 +198,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               Chapter Roadmap & Vertical Slice Progress
             </h3>
             <p className="text-xs text-slate-400 mt-0.5">
-              Strictly calculated from real linked tasks ({taskCounts.completed} of {taskCounts.total} completed)
+              Calculated from linked production tasks and chapter milestones
             </p>
           </div>
           <button
@@ -180,6 +212,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         <div className="space-y-4">
           {chapterProgress.map((chapter: Chapter) => {
             const percent = chapter.progress_percent || 0;
+            const hasTasks = (chapter.total_tasks || 0) > 0;
+            const hasMilestones = (chapter.total_milestones || 0) > 0;
             return (
               <div key={chapter.id} className="p-3.5 rounded-xl bg-studio-850/60 border border-studio-800 hover:border-studio-700 transition-colors">
                 <div className="flex items-center justify-between mb-2">
@@ -210,7 +244,15 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                       {percent}%
                     </span>
                     <span className="text-[11px] text-slate-400 ml-1.5 font-mono">
-                      ({chapter.completed_tasks || 0}/{chapter.total_tasks || 0} tasks)
+                      {hasTasks && hasMilestones
+                        ? `(${chapter.completed_tasks || 0}/${chapter.total_tasks} tasks • ${chapter.completed_milestones || 0}/${chapter.total_milestones} milestones)`
+                        : hasTasks
+                        ? `(${chapter.completed_tasks || 0}/${chapter.total_tasks} tasks)`
+                        : hasMilestones
+                        ? `(${chapter.completed_milestones || 0}/${chapter.total_milestones} milestones)`
+                        : chapter.status === 'Completed'
+                        ? '(Completed)'
+                        : '(0 items)'}
                     </span>
                   </div>
                 </div>
@@ -221,13 +263,15 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     className={`h-full transition-all duration-500 rounded-full ${
                       percent === 100
                         ? 'bg-emerald-500'
-                        : percent > 50
+                        : chapter.status === 'Blocked'
                         ? 'bg-rose-500'
-                        : percent > 0
+                        : percent >= 50
                         ? 'bg-sky-500'
+                        : percent > 0
+                        ? 'bg-sky-600'
                         : 'bg-studio-700'
                     }`}
-                    style={{ width: `${percent}%` }}
+                    style={{ width: `${Math.min(100, Math.max(0, percent))}%` }}
                   />
                 </div>
               </div>

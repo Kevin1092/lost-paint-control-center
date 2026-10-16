@@ -120,6 +120,8 @@ export interface Chapter {
   acceptance_criteria?: string | null;
   total_tasks?: number;
   completed_tasks?: number;
+  total_milestones?: number;
+  completed_milestones?: number;
   progress_percent?: number;
   milestones?: Milestone[];
   tasks?: Task[];

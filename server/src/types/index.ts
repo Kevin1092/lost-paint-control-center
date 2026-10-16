@@ -113,6 +113,8 @@ export interface Chapter {
   owner_name?: string | null;
   total_tasks?: number;
   completed_tasks?: number;
+  total_milestones?: number;
+  completed_milestones?: number;
   progress_percent?: number;
   milestones?: Milestone[];
 }

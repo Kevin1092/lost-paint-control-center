@@ -9,11 +9,18 @@ build/
 .env
 .env.local
 
-# SQLite Database dynamic journal and temp files
-data/*.db-shm
-data/*.db-wal
-data/*.backup-*
-data/backups/
+# SQLite Database dynamic journal, test, and backup files
+*.db-shm
+*.db-wal
+*.db-journal
+*.backup-*
+lost_paint_test.db*
+**/backups/
+**/data/*.backup-*
+**/data/*.db-shm
+**/data/*.db-wal
+**/data/*.db-journal
+**/data/backups/
 
 # Logs
 npm-debug.log*
@@ -24,3 +31,4 @@ yarn-error.log*
 # OS Metadata
 .DS_Store
 Thumbs.db
+
