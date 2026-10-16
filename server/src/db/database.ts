@@ -929,4 +929,69 @@ Explore → Investigate clues → Solve environmental puzzles → Discover story
       now
     );
   }
+
+  // Seed Prebuilt User Accounts (if not in test mode)
+  if (!isTest) {
+    seedPrebuiltUsers();
+  }
+}
+
+export function seedPrebuiltUsers() {
+  const now = new Date().toISOString();
+  const defaultPasswordHash = bcrypt.hashSync('lostpaint123', 10);
+  const prebuiltUsers = [
+    {
+      id: 'user-kevin',
+      email: 'kevin@lostpaintstudios.com',
+      display_name: 'BuildwithKevin',
+      role: 'admin',
+      team_member_id: 'member-1'
+    },
+    {
+      id: 'user-aquamilet',
+      email: 'aquamilet@lostpaintstudios.com',
+      display_name: 'AquaMiletYT',
+      role: 'admin',
+      team_member_id: 'member-2'
+    },
+    {
+      id: 'user-survivor',
+      email: 'survivor@lostpaintstudios.com',
+      display_name: 'Survivor',
+      role: 'editor',
+      team_member_id: 'member-6'
+    },
+    {
+      id: 'user-steve',
+      email: 'steve@lostpaintstudios.com',
+      display_name: 'Steve',
+      role: 'editor',
+      team_member_id: 'member-7'
+    },
+    {
+      id: 'user-viewer',
+      email: 'viewer@lostpaintstudios.com',
+      display_name: 'Studio Viewer',
+      role: 'viewer',
+      team_member_id: null
+    }
+  ];
+
+  for (const u of prebuiltUsers) {
+    const existing = db.prepare('SELECT id FROM users WHERE email = ?').get(u.email) as { id: string } | undefined;
+    if (existing) {
+      db.prepare('UPDATE users SET password_hash = ?, is_active = 1 WHERE id = ?').run(defaultPasswordHash, existing.id);
+      if (u.team_member_id) {
+        db.prepare('UPDATE team_members SET user_id = ? WHERE id = ?').run(existing.id, u.team_member_id);
+      }
+    } else {
+      db.prepare(`
+        INSERT INTO users (id, email, password_hash, display_name, role, team_member_id, is_active, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?)
+      `).run(u.id, u.email, defaultPasswordHash, u.display_name, u.role, u.team_member_id, now, now);
+      if (u.team_member_id) {
+        db.prepare('UPDATE team_members SET user_id = ? WHERE id = ?').run(u.id, u.team_member_id);
+      }
+    }
+  }
 }
