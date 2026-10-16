@@ -36,8 +36,8 @@ app.use(cookieParser());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// Health Check Endpoint
-app.get('/api/health', (req: Request, res: Response) => {
+// Health Check Endpoint (supports both /api/health and /health for cloud monitors)
+const healthHandler = (req: Request, res: Response) => {
   try {
     const dbCheck = db.prepare('SELECT 1 as healthy').get() as { healthy: number };
     res.json({
@@ -54,7 +54,10 @@ app.get('/api/health', (req: Request, res: Response) => {
       error: err.message
     });
   }
-});
+};
+
+app.get('/api/health', healthHandler);
+app.get('/health', healthHandler);
 
 // Mount Routes
 app.use('/api/auth', authRouter);
@@ -82,9 +85,19 @@ app.use('/api/*', (req: Request, res: Response) => {
 // Serve static React build when client/dist exists
 const clientDistPath = path.resolve(__dirname, '../../client/dist');
 if (fs.existsSync(clientDistPath)) {
+  console.log(`[Lost Paint Studios] Serving static frontend from: ${clientDistPath}`);
   app.use(express.static(clientDistPath));
   app.get('*', (req: Request, res: Response) => {
     res.sendFile(path.join(clientDistPath, 'index.html'));
+  });
+} else {
+  console.warn(`[Lost Paint Studios] Notice: Static client build not found at ${clientDistPath}. Mounting fallback / route.`);
+  app.get('/', (req: Request, res: Response) => {
+    res.json({
+      message: 'Lost Paint Studios — Studio Control Center API is running.',
+      health: '/api/health',
+      timestamp: new Date().toISOString()
+    });
   });
 }
 

@@ -2,6 +2,7 @@
   "name": "lost-paint-studios-control-center",
   "version": "1.0.0",
   "description": "Studio Control Center for Lost Paint Studios",
+  "main": "server.js",
   "workspaces": [
     "server",
     "client"
@@ -11,8 +12,9 @@
   },
   "scripts": {
     "dev": "concurrently -n \"server,client\" -c \"magenta,cyan\" \"npm run dev -w server\" \"npm run dev -w client\"",
-    "build": "npm run build --workspaces",
-    "start": "npm run start -w server",
+    "build": "node scripts/build.js",
+    "start": "node server.js",
+    "start:server": "npm run start -w server",
     "test": "npm test -w server"
   },
   "devDependencies": {
