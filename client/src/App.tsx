@@ -89,7 +89,11 @@ const MainLayout: React.FC = () => {
 
   useEffect(() => {
     if (!loading) {
-      if (setupNeeded) {
+      const urlParams = new URLSearchParams(window.location.search);
+      const token = urlParams.get('token');
+      if (token) {
+        setAuthModalOpen(true);
+      } else if (setupNeeded) {
         setAuthModalOpen(true);
       } else if (!user) {
         setAuthModalOpen(true);

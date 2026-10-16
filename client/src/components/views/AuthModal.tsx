@@ -26,6 +26,21 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const token = urlParams.get('token');
+    if (token) {
+      setMode('invite');
+      setInviteToken(token);
+      api.getInvite(token)
+        .then((res: any) => {
+          if (res?.invite?.member_name) {
+            setDisplayName(res.invite.member_name);
+          }
+        })
+        .catch(() => {});
+      return;
+    }
+
     if (setupNeeded) {
       setMode('setup');
       setEmail('kevin@lostpaintstudios.com');
