@@ -1,0 +1,41 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-studio-950 text-slate-100 min-h-screen overflow-x-hidden;
+  }
+
+  /* Custom scrollbar for dark studio UI */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: #0c0f17;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #252d47;
+    border-radius: 3px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #353f63;
+  }
+}
+
+.studio-card {
+  @apply bg-studio-900/80 border border-studio-800 rounded-xl shadow-lg backdrop-blur-sm transition-all;
+}
+
+.studio-card:hover {
+  @apply border-studio-700;
+}
+
+.glass-panel {
+  @apply bg-studio-900/70 border border-studio-750/70 backdrop-blur-md shadow-xl;
+}
+
+.glow-crimson {
+  box-shadow: 0 0 25px -5px rgba(225, 29, 72, 0.25);
+}

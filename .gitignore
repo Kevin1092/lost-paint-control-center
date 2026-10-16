@@ -1,0 +1,26 @@
+# Dependencies
+node_modules/
+
+# Production build outputs
+dist/
+build/
+
+# Environment files
+.env
+.env.local
+
+# SQLite Database dynamic journal and temp files
+data/*.db-shm
+data/*.db-wal
+data/*.backup-*
+data/backups/
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+*.log
+
+# OS Metadata
+.DS_Store
+Thumbs.db

@@ -1,0 +1,204 @@
+import { describe, it, expect, beforeAll } from 'vitest';
+import request from 'supertest';
+import { app } from '../app';
+import { db } from '../db/database';
+
+describe('Lost Paint Studios — Studio Control Center Backend Tests', () => {
+  let adminToken: string;
+  let viewerToken: string;
+
+  beforeAll(() => {
+    // Clear and re-initialize test state with respect to foreign keys
+    db.prepare('DELETE FROM invites').run();
+    db.prepare('UPDATE team_members SET user_id = NULL').run();
+    db.prepare('UPDATE tasks SET creator_id = NULL').run();
+    db.prepare('UPDATE development_logs SET author_id = NULL').run();
+    db.prepare('UPDATE bugs SET reporter_id = NULL').run();
+    db.prepare('UPDATE calendar_events SET creator_id = NULL').run();
+    db.prepare('UPDATE task_comments SET author_id = NULL').run();
+    db.prepare('DELETE FROM users').run();
+  });
+
+  it('Health endpoint returns healthy status and connected database', async () => {
+    const res = await request(app).get('/api/health');
+    expect(res.status).toBe(200);
+    expect(res.body.status).toBe('ok');
+    expect(res.body.database).toBe('connected');
+    expect(res.body.service).toContain('Lost Paint Studios');
+  });
+
+  it('Seeds exactly 13 team members with correct countries and roles', async () => {
+    const members = db.prepare('SELECT * FROM team_members').all() as any[];
+    expect(members.length).toBe(13);
+
+    const names = members.map(m => m.name);
+    expect(names).toContain('BuildwithKevin');
+    expect(names).toContain('AquaMiletYT');
+    expect(names).toContain('Hsein');
+    expect(names).toContain('AuraKkboo');
+    expect(names).toContain('Tobyosnow');
+    expect(names).toContain('Survivor');
+    expect(names).toContain('Steve');
+    expect(names).toContain('Mach Studios');
+    expect(names).toContain('Raffie0_0');
+    expect(names).toContain('S4mmy');
+    expect(names).toContain('Kite');
+    expect(names).toContain('Raphaelle');
+    expect(names).toContain('Rosie');
+
+    // Check gameplay recording privileges
+    const recorders = members.filter(m => m.can_record_gameplay === 1).map(m => m.name);
+    expect(recorders).toContain('Steve');
+    expect(recorders).toContain('AuraKkboo');
+    expect(recorders).toContain('Tobyosnow');
+    expect(recorders).toContain('Survivor');
+
+    // Check founders
+    const founders = members.filter(m => m.is_founder === 1).map(m => m.name);
+    expect(founders).toContain('BuildwithKevin');
+    expect(founders).toContain('AquaMiletYT');
+  });
+
+  it('Seeds 5 planned roadmap chapters matching specification', async () => {
+    const chapters = db.prepare('SELECT * FROM chapters ORDER BY order_index ASC').all() as any[];
+    expect(chapters.length).toBe(5);
+    expect(chapters[0].day_range).toBe('Days 1–20');
+    expect(chapters[0].name).toContain('Chapter 1 / Opening');
+    expect(chapters[1].day_range).toBe('Days 21–40');
+    expect(chapters[1].name).toContain('Chapter 2: Farmhouse');
+    expect(chapters[2].day_range).toBe('Days 41–60');
+    expect(chapters[3].day_range).toBe('Days 61–80');
+    expect(chapters[4].day_range).toBe('Days 81–100');
+  });
+
+  it('Allows setting up the first owner/admin account', async () => {
+    const res = await request(app)
+      .post('/api/auth/setup-admin')
+      .send({
+        email: 'kevin@lostpaintstudios.com',
+        password: 'secureFounderPassword2026!',
+        display_name: 'BuildwithKevin',
+        team_member_id: 'member-1'
+      });
+
+    expect(res.status).toBe(200);
+    expect(res.body.user).toBeDefined();
+    expect(res.body.user.role).toBe('admin');
+    expect(res.body.token).toBeDefined();
+
+    adminToken = res.body.token;
+
+    // Disallow second setup
+    const duplicateRes = await request(app)
+      .post('/api/auth/setup-admin')
+      .send({
+        email: 'other@lostpaintstudios.com',
+        password: 'anotherPassword123!',
+        display_name: 'Another User'
+      });
+    expect(duplicateRes.status).toBe(400);
+  });
+
+  it('Enforces login authentication and validates passwords', async () => {
+    // Failed login
+    const failRes = await request(app)
+      .post('/api/auth/login')
+      .send({
+        email: 'kevin@lostpaintstudios.com',
+        password: 'wrongPassword!'
+      });
+    expect(failRes.status).toBe(401);
+
+    // Successful login
+    const successRes = await request(app)
+      .post('/api/auth/login')
+      .send({
+        email: 'kevin@lostpaintstudios.com',
+        password: 'secureFounderPassword2026!'
+      });
+    expect(successRes.status).toBe(200);
+    expect(successRes.body.token).toBeDefined();
+  });
+
+  it('Rejects unauthenticated access to protected routes', async () => {
+    const res = await request(app).get('/api/tasks');
+    expect(res.status).toBe(401);
+  });
+
+  it('Supports invite generation and creating a viewer account', async () => {
+    // Admin creates invite
+    const inviteRes = await request(app)
+      .post('/api/auth/invite')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        email: 'viewer@lostpaintstudios.com',
+        role: 'viewer',
+        team_member_id: 'member-12'
+      });
+    expect(inviteRes.status).toBe(200);
+    const token = inviteRes.body.token;
+
+    // Viewer accepts invite
+    const acceptRes = await request(app)
+      .post('/api/auth/accept-invite')
+      .send({
+        token,
+        password: 'viewerPassword123!',
+        display_name: 'Raphaelle'
+      });
+    expect(acceptRes.status).toBe(200);
+    viewerToken = acceptRes.body.token;
+  });
+
+  it('Enforces role permissions: Viewer cannot create tasks, Admin can', async () => {
+    // Viewer attempt to create task -> 403 Forbidden
+    const viewerTaskRes = await request(app)
+      .post('/api/tasks')
+      .set('Authorization', `Bearer ${viewerToken}`)
+      .send({
+        title: 'Unauthorized Task',
+        category: 'Level Design',
+        status: 'To Do',
+        priority: 'Normal'
+      });
+    expect(viewerTaskRes.status).toBe(403);
+
+    // Admin creates task -> 201 Created
+    const adminTaskRes = await request(app)
+      .post('/api/tasks')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        title: 'Assemble Abandoned Farmhouse Cellar Door',
+        description: 'Construct heavy cellar door prop with padlock chain interaction.',
+        category: 'Level Design',
+        status: 'In Progress',
+        priority: 'High',
+        chapter_id: 'chapter-1',
+        assignee_ids: ['member-1', 'member-8']
+      });
+    expect(adminTaskRes.status).toBe(201);
+    expect(adminTaskRes.body.id).toBeDefined();
+  });
+
+  it('Calculates chapter progress accurately based on linked tasks', async () => {
+    const res = await request(app)
+      .get('/api/chapters')
+      .set('Authorization', `Bearer ${adminToken}`);
+
+    expect(res.status).toBe(200);
+    const ch1 = res.body.chapters.find((c: any) => c.id === 'chapter-1');
+    expect(ch1).toBeDefined();
+    expect(ch1.total_tasks).toBeGreaterThan(0);
+    expect(typeof ch1.progress_percent).toBe('number');
+  });
+
+  it('Generates operational Excel (.xlsx) export successfully', async () => {
+    const res = await request(app)
+      .get('/api/excel/export')
+      .set('Authorization', `Bearer ${adminToken}`);
+
+    expect(res.status).toBe(200);
+    expect(res.headers['content-type']).toContain('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    expect(res.body).toBeDefined();
+  });
+});
