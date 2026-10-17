@@ -13,6 +13,10 @@ console.log(`[Lost Paint Studios] Environment: NODE_ENV=${process.env.NODE_ENV |
 
 async function bootstrap() {
   try {
+    // Check and restore remote cloud database snapshot if cloud storage is configured
+    const { cloudSync } = await import('./services/cloudSync');
+    await cloudSync.restoreIfAvailable();
+
     const { app } = await import('./app');
     const PORT = Number(process.env.PORT) || 5000;
 
@@ -27,8 +31,13 @@ async function bootstrap() {
     });
 
     // Graceful shutdown handling
-    const shutdown = (signal: string) => {
-      console.log(`[Lost Paint Studios] Received ${signal}. Shutting down gracefully...`);
+    const shutdown = async (signal: string) => {
+      console.log(`[Lost Paint Studios] Received ${signal}. Backing up and shutting down gracefully...`);
+      try {
+        await cloudSync.backupNow();
+      } catch (e) {
+        console.warn('[Lost Paint Studios] Cloud sync during shutdown failed:', e);
+      }
       server.close(() => {
         console.log('[Lost Paint Studios] Server closed successfully.');
         process.exit(0);

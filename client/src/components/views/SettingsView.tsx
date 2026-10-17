@@ -9,7 +9,8 @@ import {
   RefreshCw,
   KeyRound,
   Users,
-  HardDrive
+  HardDrive,
+  Upload
 } from 'lucide-react';
 import { StudioSettings, User } from '../../types';
 import { api } from '../../api/client';
@@ -24,6 +25,8 @@ export const SettingsView: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [snapshotting, setSnapshotting] = useState(false);
+  const [restoring, setRestoring] = useState(false);
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   // Notion test
   const [testingNotion, setTestingNotion] = useState(false);
@@ -79,6 +82,28 @@ export const SettingsView: React.FC = () => {
       error(err.message || 'Failed to create snapshot.');
     } finally {
       setSnapshotting(false);
+    }
+  };
+
+  const handleRestoreDatabase = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!confirm(`Restore live SQLite database from "${file.name}"? This will replace active records with the backup.`)) {
+      e.target.value = '';
+      return;
+    }
+
+    setRestoring(true);
+    try {
+      const res = await api.restoreDbBackup(file);
+      success(res.message || 'Database restored successfully!');
+      loadData();
+    } catch (err: any) {
+      error(err.message || 'Failed to restore database.');
+    } finally {
+      setRestoring(false);
+      e.target.value = '';
     }
   };
 
@@ -315,6 +340,23 @@ export const SettingsView: React.FC = () => {
             >
               <HardDrive className="w-4 h-4 text-sky-400" />
               <span>{snapshotting ? 'Creating Snapshot...' : 'Create Local Disk Snapshot'}</span>
+            </button>
+
+            <input
+              type="file"
+              ref={fileInputRef}
+              onChange={handleRestoreDatabase}
+              accept=".db,application/x-sqlite3"
+              className="hidden"
+            />
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={restoring}
+              className="px-4 py-2 bg-studio-850 hover:bg-studio-800 border border-studio-750 text-slate-200 font-medium rounded-xl flex items-center gap-2 transition-transform active:scale-95"
+            >
+              <Upload className="w-4 h-4 text-emerald-400" />
+              <span>{restoring ? 'Restoring Database...' : 'Restore from Backup (.db)'}</span>
             </button>
           </div>
         ) : (

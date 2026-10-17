@@ -5,10 +5,31 @@ import fs from 'fs';
 import crypto from 'crypto';
 import bcrypt from 'bcryptjs';
 
+import { cloudSync } from '../services/cloudSync';
+
 const isTest = process.env.NODE_ENV === 'test' || Boolean(process.env.VITEST);
-const DB_PATH = isTest
-  ? (process.env.TEST_DATABASE_PATH || path.resolve(__dirname, '../../data/lost_paint_test.db'))
-  : (process.env.DATABASE_PATH ? path.resolve(process.cwd(), process.env.DATABASE_PATH) : path.resolve(__dirname, '../../data/lost_paint.db'));
+
+export function getDatabasePath(): string {
+  if (isTest) {
+    return process.env.TEST_DATABASE_PATH || path.resolve(__dirname, '../../data/lost_paint_test.db');
+  }
+  if (process.env.DATABASE_PATH) {
+    return path.isAbsolute(process.env.DATABASE_PATH)
+      ? process.env.DATABASE_PATH
+      : path.resolve(process.cwd(), process.env.DATABASE_PATH);
+  }
+  // Auto-detect Render Persistent Disk mounts
+  if (fs.existsSync('/data')) {
+    return '/data/lost_paint.db';
+  }
+  if (fs.existsSync('/var/data')) {
+    return '/var/data/lost_paint.db';
+  }
+  return path.resolve(__dirname, '../../data/lost_paint.db');
+}
+
+export const DB_PATH = getDatabasePath();
+cloudSync.setDbPathGetter(getDatabasePath);
 
 // Ensure database directory exists
 const dbDir = path.dirname(DB_PATH);
@@ -16,7 +37,27 @@ if (!fs.existsSync(dbDir)) {
   fs.mkdirSync(dbDir, { recursive: true });
 }
 
+// Pre-populate persistent disk from base template if disk was freshly mounted
+const seedTemplatePath = path.resolve(__dirname, '../../data/lost_paint.db');
+if (!fs.existsSync(DB_PATH) && fs.existsSync(seedTemplatePath) && path.resolve(DB_PATH) !== path.resolve(seedTemplatePath)) {
+  try {
+    fs.copyFileSync(seedTemplatePath, DB_PATH);
+    console.log(`[Database] Initialized persistent disk storage at ${DB_PATH} from template.`);
+  } catch (err: any) {
+    console.warn(`[Database] Notice: Could not pre-populate persistent disk: ${err.message}`);
+  }
+}
+
 export const db = new Database(DB_PATH);
+
+// Watch for file modifications to trigger debounced cloud backup
+try {
+  fs.watch(DB_PATH, (eventType) => {
+    if (eventType === 'change') {
+      cloudSync.scheduleBackup();
+    }
+  });
+} catch {}
 
 // Safely configure SQLite pragmas (Use DELETE mode instead of WAL for cloud container/Render compatibility)
 try {

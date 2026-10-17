@@ -165,6 +165,12 @@ export const api = {
     return token ? `/api/backup/download?token=${encodeURIComponent(token)}` : '/api/backup/download';
   },
   createSnapshot: () => request<any>('/backup/snapshot', { method: 'POST' }),
+  getStorageStatus: () => request<any>('/backup/status'),
+  restoreDbBackup: (file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    return request<any>('/backup/restore', { method: 'POST', body: formData });
+  },
 
   // Excel
   exportWorkbookUrl: '/api/excel/export',
