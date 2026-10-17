@@ -1,7 +1,9 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import request from 'supertest';
+import ExcelJS from 'exceljs';
 import { app } from '../app';
 import { db } from '../db/database';
+import { generateStudioWorkbook } from '../services/excelService';
 
 describe('Lost Paint Studios — Studio Control Center Backend Tests', () => {
   let adminToken: string;
@@ -200,6 +202,60 @@ describe('Lost Paint Studios — Studio Control Center Backend Tests', () => {
     expect(res.status).toBe(200);
     expect(res.headers['content-type']).toContain('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     expect(res.body).toBeDefined();
+  });
+
+  it('Imports Excel operational workbook and generates unique IDs for "auto" and empty ID rows', async () => {
+    const wb = await generateStudioWorkbook();
+
+    // Replace tasks sheet rows with 6 tasks having "auto", "AUTO", or empty IDs as instructed in workbook README
+    const tasksSheet = wb.getWorksheet('Tasks')!;
+    while (tasksSheet.rowCount > 1) {
+      tasksSheet.spliceRows(2, 1);
+    }
+    tasksSheet.addRow({ id: 'auto', title: 'Excel Import Task 1', category: 'Level Design', status: 'To Do', priority: 'High' });
+    tasksSheet.addRow({ id: 'auto', title: 'Excel Import Task 2', category: 'Coding', status: 'In Progress', priority: 'Urgent' });
+    tasksSheet.addRow({ id: 'AUTO', title: 'Excel Import Task 3', category: 'Visual Scripting', status: 'To Do', priority: 'Normal' });
+    tasksSheet.addRow({ id: '', title: 'Excel Import Task 4', category: '3D Art', status: 'Done', priority: 'Normal' });
+    tasksSheet.addRow({ id: 'Auto', title: 'Excel Import Task 5', category: 'Music', status: 'In Progress', priority: 'High' });
+    tasksSheet.addRow({ id: 'auto', title: 'Excel Import Task 6', category: 'QA', status: 'To Do', priority: 'Low' });
+
+    // Bugs sheet: 1 bug with 'auto' ID
+    const bugsSheet = wb.getWorksheet('Bugs & QA')!;
+    while (bugsSheet.rowCount > 1) {
+      bugsSheet.spliceRows(2, 1);
+    }
+    bugsSheet.addRow({ id: 'auto', title: 'Excel Import Bug 1', severity: 'Medium', status: 'New' });
+
+    const buffer = await wb.xlsx.writeBuffer();
+
+    const importRes = await request(app)
+      .post('/api/excel/import')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .attach('file', Buffer.from(buffer), 'test-import.xlsx');
+
+    expect(importRes.status).toBe(200);
+    expect(importRes.body.success).toBe(true);
+    expect(importRes.body.recordsImported.tasks).toBe(6);
+    expect(importRes.body.recordsImported.team).toBe(13);
+    expect(importRes.body.recordsImported.bugs).toBe(1);
+
+    // Verify all 6 imported tasks exist as distinct records and are visible via /api/tasks
+    const tasksRes = await request(app)
+      .get('/api/tasks')
+      .set('Authorization', `Bearer ${adminToken}`);
+
+    expect(tasksRes.status).toBe(200);
+    const titles = tasksRes.body.tasks.map((t: any) => t.title);
+    expect(titles).toContain('Excel Import Task 1');
+    expect(titles).toContain('Excel Import Task 2');
+    expect(titles).toContain('Excel Import Task 3');
+    expect(titles).toContain('Excel Import Task 4');
+    expect(titles).toContain('Excel Import Task 5');
+    expect(titles).toContain('Excel Import Task 6');
+
+    // Ensure no task literally has 'auto' as primary key ID
+    const autoTasks = tasksRes.body.tasks.filter((t: any) => t.id.toLowerCase() === 'auto');
+    expect(autoTasks.length).toBe(0);
   });
 
   it('Successfully queries and sorts tasks with priority ordering', async () => {

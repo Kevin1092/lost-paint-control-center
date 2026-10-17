@@ -153,9 +153,17 @@ excelRouter.post('/import', requireAuth, requireRole('admin'), upload.single('fi
             updated_at = excluded.updated_at
         `);
 
+        const parseImportId = (cellValue: any, prefix: string): string => {
+          const val = String(cellValue || '').trim();
+          if (!val || val.toLowerCase() === 'auto') {
+            return `${prefix}-${crypto.randomUUID().slice(0, 8)}`;
+          }
+          return val;
+        };
+
         tasksSheet.eachRow((row, rowNumber) => {
           if (rowNumber === 1) return; // skip header
-          const id = String(row.getCell(1).value || '').trim() || 'task-' + crypto.randomUUID().slice(0, 8);
+          const id = parseImportId(row.getCell(1).value, 'task');
           const title = String(row.getCell(2).value || '').trim();
           const category = String(row.getCell(3).value || 'Other').trim();
           const status = String(row.getCell(4).value || 'To Do').trim();
@@ -185,6 +193,14 @@ excelRouter.post('/import', requireAuth, requireRole('admin'), upload.single('fi
       // 2. Process Team Sheet if present
       const teamSheet = workbook.getWorksheet('Team');
       if (teamSheet && teamSheet.rowCount > 1) {
+        const parseImportId = (cellValue: any, prefix: string): string => {
+          const val = String(cellValue || '').trim();
+          if (!val || val.toLowerCase() === 'auto') {
+            return `${prefix}-${crypto.randomUUID().slice(0, 8)}`;
+          }
+          return val;
+        };
+
         const upsertTeam = db.prepare(`
           INSERT INTO team_members (
             id, name, country, country_code, roles, skills, is_founder, can_record_gameplay, status, notes, created_at, updated_at
@@ -204,7 +220,7 @@ excelRouter.post('/import', requireAuth, requireRole('admin'), upload.single('fi
 
         teamSheet.eachRow((row, rowNumber) => {
           if (rowNumber === 1) return;
-          const id = String(row.getCell(1).value || '').trim() || 'member-' + crypto.randomUUID().slice(0, 8);
+          const id = parseImportId(row.getCell(1).value, 'member');
           const name = String(row.getCell(2).value || '').trim();
           const country = String(row.getCell(3).value || 'India').trim();
           const country_code = String(row.getCell(4).value || 'IN').trim().toUpperCase();
@@ -238,6 +254,14 @@ excelRouter.post('/import', requireAuth, requireRole('admin'), upload.single('fi
       // 3. Process Bugs Sheet if present
       const bugsSheet = workbook.getWorksheet('Bugs & QA');
       if (bugsSheet && bugsSheet.rowCount > 1) {
+        const parseImportId = (cellValue: any, prefix: string): string => {
+          const val = String(cellValue || '').trim();
+          if (!val || val.toLowerCase() === 'auto') {
+            return `${prefix}-${crypto.randomUUID().slice(0, 8)}`;
+          }
+          return val;
+        };
+
         const upsertBug = db.prepare(`
           INSERT INTO bugs (
             id, title, severity, status, platform, reporter_name, date_found, reproduction_steps, description, created_at, updated_at
@@ -254,7 +278,7 @@ excelRouter.post('/import', requireAuth, requireRole('admin'), upload.single('fi
 
         bugsSheet.eachRow((row, rowNumber) => {
           if (rowNumber === 1) return;
-          const id = String(row.getCell(1).value || '').trim() || 'bug-' + crypto.randomUUID().slice(0, 8);
+          const id = parseImportId(row.getCell(1).value, 'bug');
           const title = String(row.getCell(2).value || '').trim();
           const severity = String(row.getCell(3).value || 'Medium').trim();
           const status = String(row.getCell(4).value || 'New').trim();
