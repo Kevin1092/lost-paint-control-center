@@ -8,6 +8,12 @@ class ApiError extends Error {
   }
 }
 
+type MutationListener = () => void;
+const mutationListeners: MutationListener[] = [];
+export function onApiMutation(listener: MutationListener) {
+  mutationListeners.push(listener);
+}
+
 async function request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
   const token = localStorage.getItem('lost_paint_token');
   const headers = new Headers(options.headers || {});
@@ -29,6 +35,14 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
   if (!res.ok) {
     const errorData = await res.json().catch(() => ({}));
     throw new ApiError(errorData.error || `Request failed with status ${res.status}`, res.status);
+  }
+
+  // Trigger debounced storage snapshot on successful mutation requests
+  const method = (options.method || 'GET').toUpperCase();
+  if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(method) && !endpoint.includes('/backup/restore') && !endpoint.includes('/auth/login') && !endpoint.includes('/auth/logout')) {
+    mutationListeners.forEach(fn => {
+      try { fn(); } catch {}
+    });
   }
 
   // If response is a blob/file, caller handles separately
@@ -166,9 +180,9 @@ export const api = {
   },
   createSnapshot: () => request<any>('/backup/snapshot', { method: 'POST' }),
   getStorageStatus: () => request<any>('/backup/status'),
-  restoreDbBackup: (file: File) => {
+  restoreDbBackup: (file: File | Blob) => {
     const formData = new FormData();
-    formData.append('file', file);
+    formData.append('file', file, file instanceof File ? file.name : 'lost_paint_backup.db');
     return request<any>('/backup/restore', { method: 'POST', body: formData });
   },
 

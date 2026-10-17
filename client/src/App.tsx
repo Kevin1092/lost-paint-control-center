@@ -19,6 +19,7 @@ import { SettingsView } from './components/views/SettingsView';
 import { AuthModal } from './components/views/AuthModal';
 import { QuickActionModal } from './components/views/QuickActionModal';
 import { api } from './api/client';
+import { storageSync } from './services/storageSync';
 
 const SECTION_METADATA: Record<NavSection, { title: string; subtitle: string }> = {
   dashboard: {
@@ -97,6 +98,12 @@ const MainLayout: React.FC = () => {
         setAuthModalOpen(true);
       } else if (!user) {
         setAuthModalOpen(true);
+      } else {
+        storageSync.checkAndAutoRestore().then((restored) => {
+          if (restored) {
+            loadBadgeCounts();
+          }
+        });
       }
     }
   }, [setupNeeded, user, loading]);

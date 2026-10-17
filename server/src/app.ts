@@ -21,6 +21,7 @@ import { excelRouter } from './routes/excel';
 import { notionRouter } from './routes/notion';
 import { settingsRouter } from './routes/settings';
 import { backupRouter } from './routes/backup';
+import { cloudSync } from './services/cloudSync';
 
 // Ensure DB is initialized
 initDatabase();
@@ -35,6 +36,22 @@ app.use(cors({
 app.use(cookieParser());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// Auto-sync & persistence middleware: Schedule debounced cloud backup on successful data mutations
+app.use((req: Request, res: Response, next: NextFunction) => {
+  if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method) && req.path.startsWith('/api') && !req.path.startsWith('/api/backup/restore')) {
+    res.on('finish', () => {
+      if (res.statusCode >= 200 && res.statusCode < 400) {
+        try {
+          const now = new Date().toISOString();
+          db.prepare("UPDATE settings SET updated_at = ? WHERE id = 'studio'").run(now);
+        } catch {}
+        cloudSync.scheduleBackup();
+      }
+    });
+  }
+  next();
+});
 
 // Health Check Endpoint (supports both /api/health and /health for cloud monitors)
 const healthHandler = (req: Request, res: Response) => {

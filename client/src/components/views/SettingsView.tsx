@@ -323,7 +323,7 @@ export const SettingsView: React.FC = () => {
           The database is a persistent SQLite store located on disk. Backups force a WAL checkpoint to truncate pending transactions and copy the exact transactional state.
         </p>
 
-        {isAdmin ? (
+        {canEdit ? (
           <div className="flex flex-wrap items-center gap-3 pt-2">
             <a
               href={api.getBackupDownloadUrl()}
@@ -360,7 +360,7 @@ export const SettingsView: React.FC = () => {
             </button>
           </div>
         ) : (
-          <p className="text-slate-400 italic">Database backup downloads are restricted to Owner/Admin roles.</p>
+          <p className="text-slate-400 italic">Database backup downloads are restricted to Owner/Admin and Editor roles.</p>
         )}
 
         {/* Restore Instructions */}

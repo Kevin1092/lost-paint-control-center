@@ -2,7 +2,7 @@ import { Router, Response } from 'express';
 import multer from 'multer';
 import fs from 'fs';
 import path from 'path';
-import { db, getDatabasePath } from '../db/database';
+import { db, getDatabasePath, reloadDatabaseConnection } from '../db/database';
 import { requireAuth, requireRole, AuthRequest } from '../middleware/auth';
 import { logAudit } from '../services/auditService';
 import { cloudSync } from '../services/cloudSync';
@@ -14,23 +14,33 @@ const upload = multer({
   limits: { fileSize: 50 * 1024 * 1024 }
 });
 
-// GET /api/backup/status (Check current storage backend)
+// GET /api/backup/status (Check current storage backend & synchronization timestamps)
 backupRouter.get('/status', requireAuth, (req: AuthRequest, res: Response): void => {
   const dbPath = getDatabasePath();
   const isRenderDisk = dbPath.startsWith('/data') || dbPath.startsWith('/var/data');
   const hasUpstash = Boolean(process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN);
   const hasSyncUrl = Boolean(process.env.DATABASE_SYNC_URL);
 
+  let updatedAt: string | null = null;
+  let lastBackupAt: string | null = null;
+  try {
+    const settingsRow = db.prepare('SELECT updated_at, last_backup_at FROM settings WHERE id = ?').get('studio') as any;
+    updatedAt = settingsRow?.updated_at || null;
+    lastBackupAt = settingsRow?.last_backup_at || null;
+  } catch {}
+
   res.json({
     databasePath: dbPath,
     storageType: isRenderDisk ? 'persistent_disk' : hasUpstash ? 'upstash_cloud_sync' : hasSyncUrl ? 'remote_sync_url' : 'ephemeral_local',
     isPersistent: isRenderDisk || hasUpstash || hasSyncUrl,
-    cloudSyncConfigured: hasUpstash || hasSyncUrl
+    cloudSyncConfigured: hasUpstash || hasSyncUrl,
+    updatedAt,
+    lastBackupAt
   });
 });
 
-// GET /api/backup/download (Admin: download active SQLite database file)
-backupRouter.get('/download', requireAuth, requireRole('admin'), (req: AuthRequest, res: Response): void => {
+// GET /api/backup/download (Admin & Editor: download active SQLite database file)
+backupRouter.get('/download', requireAuth, requireRole('admin', 'editor'), (req: AuthRequest, res: Response): void => {
   try {
     const dbPath = getDatabasePath();
 
@@ -66,8 +76,8 @@ backupRouter.get('/download', requireAuth, requireRole('admin'), (req: AuthReque
   }
 });
 
-// POST /api/backup/snapshot (Admin: create local snapshot on disk)
-backupRouter.post('/snapshot', requireAuth, requireRole('admin'), async (req: AuthRequest, res: Response): Promise<void> => {
+// POST /api/backup/snapshot (Admin & Editor: create local snapshot on disk)
+backupRouter.post('/snapshot', requireAuth, requireRole('admin', 'editor'), async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const dbPath = getDatabasePath();
     try {
@@ -108,8 +118,8 @@ backupRouter.post('/snapshot', requireAuth, requireRole('admin'), async (req: Au
   }
 });
 
-// POST /api/backup/restore (Admin: upload and restore a .db backup file live)
-backupRouter.post('/restore', requireAuth, requireRole('admin'), upload.single('file'), async (req: AuthRequest, res: Response): Promise<void> => {
+// POST /api/backup/restore (Admin & Editor: upload and restore a .db backup file live)
+backupRouter.post('/restore', requireAuth, requireRole('admin', 'editor'), upload.single('file'), async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     if (!req.file) {
       res.status(400).json({ error: 'No database file provided.' });
@@ -132,14 +142,25 @@ backupRouter.post('/restore', requireAuth, requireRole('admin'), upload.single('
       fs.copyFileSync(dbPath, path.join(snapshotDir, `pre_restore_${Date.now()}.db`));
     }
 
-    // Write new database
+    // Checkpoint SQLite and write new database file
+    try {
+      db.pragma('wal_checkpoint(TRUNCATE)');
+    } catch {}
+
     fs.writeFileSync(dbPath, req.file.buffer);
+
+    // Reload active SQLite connection to point to the new file
+    reloadDatabaseConnection();
 
     // Sync to cloud storage if enabled
     await cloudSync.backupNow().catch(() => {});
 
     const now = new Date().toISOString();
-    db.prepare("UPDATE settings SET last_backup_at = ?, updated_at = ? WHERE id = 'studio'").run(now, now);
+    try {
+      db.prepare("UPDATE settings SET last_backup_at = ?, updated_at = ?, is_seeded = 1 WHERE id = 'studio'").run(now, now);
+    } catch {
+      db.prepare("UPDATE settings SET last_backup_at = ?, updated_at = ? WHERE id = 'studio'").run(now, now);
+    }
 
     logAudit({
       userId: req.user!.id,

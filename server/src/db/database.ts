@@ -48,29 +48,47 @@ if (!fs.existsSync(DB_PATH) && fs.existsSync(seedTemplatePath) && path.resolve(D
   }
 }
 
-export const db = new Database(DB_PATH);
-
-// Watch for file modifications to trigger debounced cloud backup
-try {
-  fs.watch(DB_PATH, (eventType) => {
-    if (eventType === 'change') {
-      cloudSync.scheduleBackup();
-    }
-  });
-} catch {}
+let currentDb = new Database(DB_PATH);
 
 // Safely configure SQLite pragmas (Use DELETE mode instead of WAL for cloud container/Render compatibility)
 try {
-  db.pragma('journal_mode = DELETE');
+  currentDb.pragma('journal_mode = DELETE');
 } catch (e) {
   console.warn('[Database] Could not set journal_mode:', e);
 }
 
 try {
-  db.pragma('foreign_keys = ON');
+  currentDb.pragma('foreign_keys = ON');
 } catch (e) {
   console.warn('[Database] Could not set foreign_keys:', e);
 }
+
+export function reloadDatabaseConnection() {
+  try {
+    currentDb.close();
+  } catch {}
+  currentDb = new Database(DB_PATH);
+  try {
+    currentDb.pragma('journal_mode = DELETE');
+  } catch (e) {
+    console.warn('[Database] Could not set journal_mode:', e);
+  }
+  try {
+    currentDb.pragma('foreign_keys = ON');
+  } catch (e) {
+    console.warn('[Database] Could not set foreign_keys:', e);
+  }
+}
+
+export const db: Database.Database = new Proxy({} as any, {
+  get(_target, prop) {
+    const val = (currentDb as any)[prop];
+    if (typeof val === 'function') {
+      return val.bind(currentDb);
+    }
+    return val;
+  }
+});
 
 export function initDatabase() {
   db.exec(`
@@ -86,6 +104,7 @@ export function initDatabase() {
       notion_token TEXT,
       notion_page_id TEXT,
       last_backup_at TEXT,
+      is_seeded INTEGER DEFAULT 0,
       updated_at TEXT NOT NULL
     );
 
@@ -392,6 +411,11 @@ export function initDatabase() {
     CREATE INDEX IF NOT EXISTS idx_audit_created ON audit_logs(created_at);
   `);
 
+  // Ensure is_seeded column exists for existing databases
+  try {
+    db.exec('ALTER TABLE settings ADD COLUMN is_seeded INTEGER DEFAULT 0');
+  } catch {}
+
   // Seed default settings and initial data if not present
   seedInitialData();
 }
@@ -399,12 +423,17 @@ export function initDatabase() {
 export function seedInitialData() {
   const now = new Date().toISOString();
 
-  // Settings
-  const settingsRow = db.prepare('SELECT id FROM settings WHERE id = ?').get('studio');
+  // Settings & Permanent Seeding Guard
+  const settingsRow = db.prepare('SELECT id, is_seeded FROM settings WHERE id = ?').get('studio') as any;
+  if (settingsRow && settingsRow.is_seeded === 1) {
+    // Database has already been seeded! NEVER overwrite or re-seed user data (e.g. deleted chapters, custom tasks, etc.)
+    return;
+  }
+
   if (!settingsRow) {
     db.prepare(`
-      INSERT INTO settings (id, studio_name, game_title, game_status, engine, platform_targets, default_timezone, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO settings (id, studio_name, game_title, game_status, engine, platform_targets, default_timezone, is_seeded, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?)
     `).run(
       'studio',
       'Lost Paint Studios',
@@ -980,6 +1009,9 @@ Explore → Investigate clues → Solve environmental puzzles → Discover story
     );
   }
 
+  // Mark initial seeding permanently complete so future restarts NEVER overwrite user data
+  db.prepare("UPDATE settings SET is_seeded = 1, updated_at = ? WHERE id = 'studio'").run(now);
+
   // Seed Prebuilt User Accounts (if not in test mode)
   if (!isTest) {
     seedPrebuiltUsers();
@@ -1030,9 +1062,9 @@ export function seedPrebuiltUsers() {
   for (const u of prebuiltUsers) {
     const existing = db.prepare('SELECT id FROM users WHERE email = ?').get(u.email) as { id: string } | undefined;
     if (existing) {
-      db.prepare('UPDATE users SET password_hash = ?, is_active = 1 WHERE id = ?').run(defaultPasswordHash, existing.id);
+      // Do not overwrite user password if account already exists
       if (u.team_member_id) {
-        db.prepare('UPDATE team_members SET user_id = ? WHERE id = ?').run(existing.id, u.team_member_id);
+        db.prepare('UPDATE team_members SET user_id = ? WHERE id = ? AND (user_id IS NULL OR user_id = "")').run(existing.id, u.team_member_id);
       }
     } else {
       db.prepare(`
