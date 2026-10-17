@@ -32,7 +32,7 @@ export const SettingsView: React.FC = () => {
   const [testingNotion, setTestingNotion] = useState(false);
   const [notionTestResult, setNotionTestResult] = useState<any | null>(null);
 
-  const { isAdmin } = useAuth();
+  const { isAdmin, canEdit } = useAuth();
   const { success, error } = useToast();
 
   useEffect(() => {
