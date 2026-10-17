@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll } from 'vitest';
 import request from 'supertest';
 import ExcelJS from 'exceljs';
 import { app } from '../app';
-import { db } from '../db/database';
+import { db, seedPrebuiltUsers } from '../db/database';
 import { generateStudioWorkbook } from '../services/excelService';
 
 describe('Lost Paint Studios — Studio Control Center Backend Tests', () => {
@@ -318,6 +318,50 @@ describe('Lost Paint Studios — Studio Control Center Backend Tests', () => {
       .get(`/api/chapters/${testChId}`)
       .set('Authorization', `Bearer ${adminToken}`);
     expect(checkRes.status).toBe(404);
+  });
+
+  it('Seeds prebuilt user accounts including tobysnow and authenticates with lostpaint123', async () => {
+    seedPrebuiltUsers();
+
+    // Login with tobysnow full email
+    const tobyRes = await request(app)
+      .post('/api/auth/login')
+      .send({
+        email: 'tobysnow@lostpaintstudios.com',
+        password: 'lostpaint123'
+      });
+    expect(tobyRes.status).toBe(200);
+    expect(tobyRes.body.user.email).toBe('tobysnow@lostpaintstudios.com');
+    expect(tobyRes.body.user.role).toBe('editor');
+    expect(tobyRes.body.user.team_member_id).toBe('member-5');
+
+    // Login with tobysnow username
+    const tobyUserRes = await request(app)
+      .post('/api/auth/login')
+      .send({
+        email: 'tobysnow',
+        password: 'lostpaint123'
+      });
+    expect(tobyUserRes.status).toBe(200);
+
+    // Login with prebuilt accounts from reference image
+    const kevinRes = await request(app)
+      .post('/api/auth/login')
+      .send({
+        email: 'kevin@lostpaintstudios.com',
+        password: 'lostpaint123'
+      });
+    expect(kevinRes.status).toBe(200);
+    expect(kevinRes.body.user.role).toBe('admin');
+
+    const viewerRes = await request(app)
+      .post('/api/auth/login')
+      .send({
+        email: 'viewer@lostpaintstudios.com',
+        password: 'lostpaint123'
+      });
+    expect(viewerRes.status).toBe(200);
+    expect(viewerRes.body.user.role).toBe('viewer');
   });
 });
 

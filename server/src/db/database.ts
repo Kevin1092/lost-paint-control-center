@@ -418,6 +418,11 @@ export function initDatabase() {
 
   // Seed default settings and initial data if not present
   seedInitialData();
+
+  // Seed Prebuilt User Accounts (if not in test mode)
+  if (!isTest) {
+    seedPrebuiltUsers();
+  }
 }
 
 export function seedInitialData() {
@@ -1011,11 +1016,6 @@ Explore → Investigate clues → Solve environmental puzzles → Discover story
 
   // Mark initial seeding permanently complete so future restarts NEVER overwrite user data
   db.prepare("UPDATE settings SET is_seeded = 1, updated_at = ? WHERE id = 'studio'").run(now);
-
-  // Seed Prebuilt User Accounts (if not in test mode)
-  if (!isTest) {
-    seedPrebuiltUsers();
-  }
 }
 
 export function seedPrebuiltUsers() {
@@ -1051,6 +1051,13 @@ export function seedPrebuiltUsers() {
       team_member_id: 'member-7'
     },
     {
+      id: 'user-tobysnow',
+      email: 'tobysnow@lostpaintstudios.com',
+      display_name: 'Tobyosnow',
+      role: 'editor',
+      team_member_id: 'member-5'
+    },
+    {
       id: 'user-viewer',
       email: 'viewer@lostpaintstudios.com',
       display_name: 'Studio Viewer',
@@ -1060,11 +1067,14 @@ export function seedPrebuiltUsers() {
   ];
 
   for (const u of prebuiltUsers) {
-    const existing = db.prepare('SELECT id FROM users WHERE email = ?').get(u.email) as { id: string } | undefined;
+    const existing = db.prepare('SELECT id, password_hash FROM users WHERE email = ?').get(u.email) as { id: string; password_hash: string } | undefined;
     if (existing) {
-      // Do not overwrite user password if account already exists
+      // Ensure password for prebuilt accounts matches lostpaint123
+      if (!bcrypt.compareSync('lostpaint123', existing.password_hash)) {
+        db.prepare('UPDATE users SET password_hash = ?, updated_at = ? WHERE id = ?').run(defaultPasswordHash, now, existing.id);
+      }
       if (u.team_member_id) {
-        db.prepare('UPDATE team_members SET user_id = ? WHERE id = ? AND (user_id IS NULL OR user_id = "")').run(existing.id, u.team_member_id);
+        db.prepare("UPDATE team_members SET user_id = ? WHERE id = ? AND (user_id IS NULL OR user_id = '')").run(existing.id, u.team_member_id);
       }
     } else {
       db.prepare(`

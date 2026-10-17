@@ -28,7 +28,7 @@ const RegisterSchema = z.object({
 });
 
 const LoginSchema = z.object({
-  email: z.string().email(),
+  email: z.string().min(1, 'Email is required'),
   password: z.string()
 });
 
@@ -94,7 +94,9 @@ authRouter.get('/setup-needed', (req: Request, res: Response) => {
 authRouter.post('/login', authLimiter, async (req: Request, res: Response): Promise<void> => {
   try {
     const { email, password } = LoginSchema.parse(req.body);
-    const userRow = db.prepare('SELECT * FROM users WHERE email = ?').get(email.toLowerCase()) as (User & { password_hash: string }) | undefined;
+    const normalizedInput = email.trim().toLowerCase();
+    const candidateEmail = normalizedInput.includes('@') ? normalizedInput : `${normalizedInput}@lostpaintstudios.com`;
+    const userRow = db.prepare('SELECT * FROM users WHERE LOWER(email) = ? OR LOWER(email) = ? OR LOWER(display_name) = ?').get(candidateEmail, normalizedInput, normalizedInput) as (User & { password_hash: string }) | undefined;
 
     if (!userRow) {
       res.status(401).json({ error: 'Invalid email or password.' });
