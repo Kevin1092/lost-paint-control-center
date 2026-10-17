@@ -20,10 +20,11 @@ class CloudSyncService {
     const dbPath = this.getPath();
 
     // Check Upstash Redis REST
-    const upstashUrl = process.env.UPSTASH_REDIS_REST_URL;
+    const rawUpstashUrl = process.env.UPSTASH_REDIS_REST_URL;
     const upstashToken = process.env.UPSTASH_REDIS_REST_TOKEN;
 
-    if (upstashUrl && upstashToken) {
+    if (rawUpstashUrl && upstashToken) {
+      const upstashUrl = rawUpstashUrl.replace(/\/+$/, '');
       try {
         console.log('[CloudSync] Checking Upstash Redis for remote database backup...');
         const res = await fetch(`${upstashUrl}/get/lost_paint_db_backup`, {
@@ -31,7 +32,7 @@ class CloudSyncService {
         });
         if (res.ok) {
           const data: any = await res.json();
-          if (data && data.result) {
+          if (data && data.result && typeof data.result === 'string') {
             const buf = Buffer.from(data.result, 'base64');
             if (buf.length > 1000) {
               const dir = path.dirname(dbPath);
@@ -40,6 +41,8 @@ class CloudSyncService {
               console.log(`[CloudSync] Successfully restored database from Upstash cloud backup (${buf.length} bytes).`);
               return true;
             }
+          } else {
+            console.log('[CloudSync] No previous Upstash backup found. Initializing with local database template.');
           }
         }
       } catch (err: any) {
@@ -82,23 +85,27 @@ class CloudSyncService {
 
     this.isSyncing = true;
     try {
-      const upstashUrl = process.env.UPSTASH_REDIS_REST_URL;
+      const rawUpstashUrl = process.env.UPSTASH_REDIS_REST_URL;
       const upstashToken = process.env.UPSTASH_REDIS_REST_TOKEN;
 
-      if (upstashUrl && upstashToken) {
+      if (rawUpstashUrl && upstashToken) {
+        const upstashUrl = rawUpstashUrl.replace(/\/+$/, '');
         const fileBuf = fs.readFileSync(dbPath);
         const base64 = fileBuf.toString('base64');
-        const res = await fetch(`${upstashUrl}/set/lost_paint_db_backup`, {
+        const res = await fetch(upstashUrl, {
           method: 'POST',
           headers: {
             Authorization: `Bearer ${upstashToken}`,
             'Content-Type': 'application/json'
           },
-          body: JSON.stringify(base64)
+          body: JSON.stringify(['SET', 'lost_paint_db_backup', base64])
         });
         if (res.ok) {
-          console.log(`[CloudSync] Database successfully backed up to Upstash (${fileBuf.length} bytes).`);
-          return true;
+          const data: any = await res.json();
+          if (data?.result === 'OK') {
+            console.log(`[CloudSync] Database successfully backed up to Upstash (${fileBuf.length} bytes).`);
+            return true;
+          }
         }
       }
 
