@@ -37,14 +37,24 @@ app.use(cookieParser());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// Auto-sync & persistence middleware: Schedule debounced cloud backup on successful data mutations
+// Auto-sync & persistence middleware: Update data version and schedule cloud backup on content mutations
 app.use((req: Request, res: Response, next: NextFunction) => {
-  if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method) && req.path.startsWith('/api') && !req.path.startsWith('/api/backup/restore')) {
+  const isContentMutation = (r: Request) => {
+    if (!['POST', 'PUT', 'PATCH', 'DELETE'].includes(r.method)) return false;
+    if (!r.path.startsWith('/api')) return false;
+    if (r.path.startsWith('/api/auth')) return false;
+    if (r.path.startsWith('/api/backup')) return false;
+    if (r.path.startsWith('/api/health') || r.path === '/health') return false;
+    if (r.path.includes('/test')) return false;
+    return true;
+  };
+
+  if (isContentMutation(req)) {
     res.on('finish', () => {
       if (res.statusCode >= 200 && res.statusCode < 400) {
         try {
           const now = new Date().toISOString();
-          db.prepare("UPDATE settings SET updated_at = ? WHERE id = 'studio'").run(now);
+          db.prepare("UPDATE settings SET data_version = COALESCE(data_version, 1) + 1, updated_at = ? WHERE id = 'studio'").run(now);
         } catch {}
         cloudSync.scheduleBackup();
       }

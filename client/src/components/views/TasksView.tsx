@@ -80,6 +80,11 @@ export const TasksView: React.FC = () => {
 
   useEffect(() => {
     loadData();
+    const handleRestored = () => {
+      loadData();
+    };
+    window.addEventListener('studio-storage-restored', handleRestored);
+    return () => window.removeEventListener('studio-storage-restored', handleRestored);
   }, [statusFilter, categoryFilter, priorityFilter, chapterFilter, assigneeFilter, search]);
 
   const loadData = async () => {

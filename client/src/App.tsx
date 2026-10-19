@@ -110,6 +110,11 @@ const MainLayout: React.FC = () => {
 
   useEffect(() => {
     loadBadgeCounts();
+    const handleRestored = () => {
+      loadBadgeCounts();
+    };
+    window.addEventListener('studio-storage-restored', handleRestored);
+    return () => window.removeEventListener('studio-storage-restored', handleRestored);
   }, [currentSection, user]);
 
   const loadBadgeCounts = async () => {

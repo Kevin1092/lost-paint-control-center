@@ -23,10 +23,22 @@ backupRouter.get('/status', requireAuth, (req: AuthRequest, res: Response): void
 
   let updatedAt: string | null = null;
   let lastBackupAt: string | null = null;
+  let dataVersion: number = 1;
+  let taskCount: number = 0;
+  let chapterCount: number = 0;
+  let bugCount: number = 0;
+
   try {
-    const settingsRow = db.prepare('SELECT updated_at, last_backup_at FROM settings WHERE id = ?').get('studio') as any;
+    const settingsRow = db.prepare('SELECT updated_at, last_backup_at, data_version FROM settings WHERE id = ?').get('studio') as any;
     updatedAt = settingsRow?.updated_at || null;
     lastBackupAt = settingsRow?.last_backup_at || null;
+    dataVersion = Number(settingsRow?.data_version) || 1;
+  } catch {}
+
+  try {
+    taskCount = (db.prepare('SELECT COUNT(*) as count FROM tasks').get() as any)?.count || 0;
+    chapterCount = (db.prepare('SELECT COUNT(*) as count FROM chapters').get() as any)?.count || 0;
+    bugCount = (db.prepare('SELECT COUNT(*) as count FROM bugs').get() as any)?.count || 0;
   } catch {}
 
   res.json({
@@ -35,7 +47,12 @@ backupRouter.get('/status', requireAuth, (req: AuthRequest, res: Response): void
     isPersistent: isRenderDisk || hasUpstash || hasSyncUrl,
     cloudSyncConfigured: hasUpstash || hasSyncUrl,
     updatedAt,
-    lastBackupAt
+    lastBackupAt,
+    dataVersion,
+    taskCount,
+    chapterCount,
+    bugCount,
+    isTemplate: dataVersion <= 1 && taskCount <= 6
   });
 });
 
@@ -157,7 +174,7 @@ backupRouter.post('/restore', requireAuth, requireRole('admin', 'editor'), uploa
 
     const now = new Date().toISOString();
     try {
-      db.prepare("UPDATE settings SET last_backup_at = ?, updated_at = ?, is_seeded = 1 WHERE id = 'studio'").run(now, now);
+      db.prepare("UPDATE settings SET last_backup_at = ?, updated_at = ?, is_seeded = 1, data_version = COALESCE(data_version, 1) + 1 WHERE id = 'studio'").run(now, now);
     } catch {
       db.prepare("UPDATE settings SET last_backup_at = ?, updated_at = ? WHERE id = 'studio'").run(now, now);
     }

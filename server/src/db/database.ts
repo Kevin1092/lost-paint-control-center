@@ -105,6 +105,7 @@ export function initDatabase() {
       notion_page_id TEXT,
       last_backup_at TEXT,
       is_seeded INTEGER DEFAULT 0,
+      data_version INTEGER DEFAULT 1,
       updated_at TEXT NOT NULL
     );
 
@@ -411,9 +412,12 @@ export function initDatabase() {
     CREATE INDEX IF NOT EXISTS idx_audit_created ON audit_logs(created_at);
   `);
 
-  // Ensure is_seeded column exists for existing databases
+  // Ensure is_seeded and data_version columns exist for existing databases
   try {
     db.exec('ALTER TABLE settings ADD COLUMN is_seeded INTEGER DEFAULT 0');
+  } catch {}
+  try {
+    db.exec('ALTER TABLE settings ADD COLUMN data_version INTEGER DEFAULT 1');
   } catch {}
 
   // Seed default settings and initial data if not present
@@ -428,12 +432,8 @@ export function initDatabase() {
 export function seedInitialData() {
   const now = new Date().toISOString();
 
-  // Settings & Permanent Seeding Guard
+  // Settings check
   const settingsRow = db.prepare('SELECT id, is_seeded FROM settings WHERE id = ?').get('studio') as any;
-  if (settingsRow && settingsRow.is_seeded === 1) {
-    // Database has already been seeded! NEVER overwrite or re-seed user data (e.g. deleted chapters, custom tasks, etc.)
-    return;
-  }
 
   if (!settingsRow) {
     db.prepare(`
